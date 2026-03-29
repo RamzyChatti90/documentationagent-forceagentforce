@@ -1,182 +1,273 @@
 # Architecture Technique de l'Agent SalesCoach
 
-## Table des Matières
-1.  Introduction
-2.  Vue d'ensemble Architecturale
-3.  Flux de Conversation Détaillé
-4.  API de l'Agent SalesCoach
-    4.1. Principes Généraux
-    4.2. Endpoints Clés
-    4.3. Authentification et Autorisation
-5.  Intégrations CRM
-    5.1. Principes d'Intégration
-    5.2. Intégration Salesforce (Exemple Détaillé)
-    5.3. Intégrations CRM Génériques
-6.  Considérations Techniques
-    6.1. Sécurité
-    6.2. Scalabilité et Performance
+Ce document détaille l'architecture technique de l'agent IA SalesCoach, couvrant les flux de conversation, les interfaces de programmation (API) et les mécanismes d'intégration avec les systèmes CRM. L'objectif est de fournir une compréhension approfondie des composants internes et de leurs interactions.
 
 ---
 
-## 1. Introduction
+## Table des Matières
 
-Ce document décrit l'architecture technique de l'agent SalesCoach, un système basé sur l'IA conçu pour analyser des conversations textuelles et aider les développeurs commerciaux à identifier et créer des opportunités. Il couvre les composants clés, le flux de traitement des conversations, les interfaces de programmation (API) et les mécanismes d'intégration avec les systèmes de gestion de la relation client (CRM), notamment Salesforce.
+1.  [Vue d'ensemble de l'Architecture](#1-vue-densemble-de-larchitecture)
+2.  [Flux de Conversation](#2-flux-de-conversation)
+    *   [2.1. Ingestion des Données](#21-ingestion-des-données)
+    *   [2.2. Traitement du Langage Naturel (NLP)](#22-traitement-du-langage-naturel-nlp)
+    *   [2.3. Moteur de Détection d'Opportunité](#23-moteur-de-détection-dopportunité)
+    *   [2.4. Génération de Recommandations et d'Actions](#24-génération-de-recommandations-et-dactions)
+    *   [2.5. Boucle de Rétroaction et Apprentissage](#25-boucle-de-rétroaction-et-apprentissage)
+3.  [API de l'Agent SalesCoach](#3-api-de-lagent-salescoach)
+    *   [3.1. API Exposées](#31-api-exposées)
+    *   [3.2. API Internes](#32-api-internes)
+4.  [Intégrations CRM (Exemple: Salesforce)](#4-intégrations-crm-exemple-salesforce)
+    *   [4.1. Vue d'ensemble de l'intégration](#41-vue-densemble-de-lintégration)
+    *   [4.2. Flux de Données](#42-flux-de-données)
+    *   [4.3. Mécanismes d'Intégration](#43-mécanismes-dintégration)
+    *   [4.4. Mapping des Champs CRM](#44-mapping-des-champs-crm)
+    *   [4.5. Gestion des Erreurs et Journalisation](#45-gestion-des-erreurs-et-journalisation)
+5.  [Considérations de Sécurité et de Performance](#5-considérations-de-sécurité-et-de-performance)
 
-## 2. Vue d'ensemble Architecturale
+---
 
-L'architecture de l'agent SalesCoach est modulaire, permettant une évolutivité et une maintenance aisées. Elle se compose des éléments principaux suivants :
+## 1. Vue d'ensemble de l'Architecture
 
-*   **Interface de Communication (IC)**: Canal par lequel les conversations textuelles sont ingérées (ex: messagerie d'entreprise, email, plateforme de chat).
-*   **Moteur de Traitement du Langage Naturel (NLU/NLP)**: Responsable de l'analyse sémantique, de la détection d'intention et de l'extraction d'entités clés des messages.
-*   **Moteur de Règles et IA (MRI)**: Cœur décisionnel de l'agent, appliquant des modèles d'IA et des règles métier pour détecter les opportunités, qualifier les leads et suggérer des actions.
-*   **Base de Connaissances et Modèles (BCM)**: Stocke les modèles d'IA, les règles métier, les définitions d'opportunités, les profils de leads et les données d'apprentissage.
-*   **Moteur d'Intégration CRM (MIC)**: Gère les interactions bidirectionnelles avec les systèmes CRM (ex: Salesforce) pour créer, mettre à jour et récupérer des informations.
-*   **Service d'API (API Service)**: Expose les fonctionnalités de l'agent à d'autres applications et sert d'interface pour le MIC.
-*   **Base de Données Opérationnelle (BDO)**: Stocke les données temporaires des conversations, les logs et les résultats d'analyse avant leur éventuelle persistance dans le CRM.
+L'architecture de l'agent SalesCoach est conçue pour être modulaire, scalable et résiliente. Elle se compose de plusieurs micro-services interconnectés, chacun responsable d'une fonction spécifique, facilitant ainsi le développement, le déploiement et la maintenance.
 
 mermaid
 graph TD
-    IC[Interface de Communication] -->|Conversations Textuelles| NLU[Moteur NLU/NLP]
-    NLU -->|Intentions & Entités| MRI[Moteur de Règles et IA]
-    MRI -->|Requêtes/Mises à jour| BCM[Base de Connaissances & Modèles]
-    MRI -->|Actions/Suggestions| API[Service d'API]
-    API -->|Création/Maj CRM| MIC[Moteur d'Intégration CRM]
-    MIC -->|API CRM| CRM[Système CRM (ex: Salesforce)]
-    MRI -->|Données de session/logs| BDO[Base de Données Opérationnelle]
-    API -->|Réponses/Notifications| IC
+    A[Source Conversation (Chat, Email, SMS)] --> B(Service d'Ingestion)
+    B --> C(Service NLP & Analyse Sémantique)
+    C --> D(Moteur de Détection d'Opportunité IA)
+    D --> E(Service de Génération de Recommandations)
+    E --> F(Interface Utilisateur / Tableau de Bord Commercial)
+    E --> G(Service d'Intégration CRM)
+    G --> H(Système CRM - Salesforce, HubSpot, etc.)
+    F -.-> I(Boucle de Rétroaction / Validation Utilisateur)
+    I --> D
+    Subgraph SalesCoach Core
+        C
+        D
+        E
+    End
 
 
-## 3. Flux de Conversation Détaillé
+**Composants Principaux:**
 
-Le traitement d'une conversation par l'agent SalesCoach suit un flux structuré pour garantir une analyse précise et des actions pertinentes :
+*   **Service d'Ingestion:** Collecte les conversations textuelles depuis diverses sources.
+*   **Service NLP & Analyse Sémantique:** Prétraite le texte, extrait les entités, les intentions et le sentiment.
+*   **Moteur de Détection d'Opportunité IA:** Cœur de l'agent, applique les modèles d'IA et les règles métier pour identifier les signaux d'opportunité.
+*   **Service de Génération de Recommandations:** Formule des suggestions d'actions et de réponses pour le commercial.
+*   **Service d'Intégration CRM:** Gère la synchronisation bidirectionnelle des données avec les systèmes CRM.
+*   **Interface Utilisateur / Tableau de Bord:** Présente les recommandations et permet la validation des actions.
+*   **Boucle de Rétroaction:** Permet l'amélioration continue des modèles IA via les retours utilisateurs.
 
-1.  **Réception du Message**:
-    *   Les messages sont ingérés via l'Interface de Communication (IC) depuis diverses sources (chat, email, etc.).
-    *   Chaque message est horodaté et associé à un identifiant de conversation unique.
+## 2. Flux de Conversation
 
-2.  **Prétraitement et Analyse NLU**:
-    *   Le Moteur NLU/NLP nettoie le texte (normalisation, suppression de stopwords).
-    *   Il effectue une analyse linguistique pour détecter les intentions (ex: "demander un devis", "exprimer un besoin", "demander une démo") et extraire les entités (ex: "nom de l'entreprise", "produit mentionné", "budget", "délai").
+Le traitement d'une conversation par l'agent SalesCoach suit un parcours défini, de l'ingestion à la génération d'actions.
 
-3.  **Évaluation par le Moteur de Règles et IA (MRI)**:
-    *   Les intentions et entités extraites sont transmises au MRI.
-    *   Le MRI applique des modèles d'IA (apprentissage supervisé, réseaux de neurones) pour évaluer la probabilité qu'une opportunité commerciale existe.
-    *   Des règles métier définies dans la BCM sont appliquées pour affiner la qualification (ex: présence de mots-clés spécifiques, montant de budget minimum, délai court).
-    *   Le MRI identifie si le message correspond à un cas d'usage métier prédéfini (qualification de lead, demande de devis, suivi de relance, etc.).
+### 2.1. Ingestion des Données
 
-4.  **Interaction avec le CRM (via MIC)**:
-    *   Si une opportunité ou un lead est détecté, le MRI déclenche une requête via le Service d'API vers le Moteur d'Intégration CRM (MIC).
-    *   Le MIC interroge le CRM pour vérifier l'existence d'un lead/compte/opportunité correspondant afin d'éviter les doublons.
-    *   Si nécessaire, le MIC crée ou met à jour des enregistrements dans le CRM (Lead, Opportunity, Task, Event) en mappant les entités extraites aux champs CRM pertinents.
-    *   Les résultats des opérations CRM (succès, échec, ID d'enregistrement) sont renvoyés au MRI.
+Le service d'ingestion est responsable de la réception et de la normalisation des conversations textuelles.
 
-5.  **Génération de la Réponse/Action**:
-    *   En fonction des résultats de l'analyse et des interactions CRM, le MRI formule une suggestion ou une action pour l'utilisateur (le développeur commercial).
-    *   Exemples d'actions : "Une opportunité a été créée dans Salesforce (ID: OP-12345). Le client semble intéressé par X avec un budget de Y.", "Ce lead nécessite une qualification approfondie, suggérez une démo.", "Relancez le client concernant la proposition Z."
-    *   Ces suggestions sont transmises via le Service d'API à l'Interface de Communication (IC) ou à un tableau de bord dédié.
+*   **Sources:** Messageries instantanées (Slack, Teams), plateformes de chat web, emails, SMS, enregistrements de conversations transcrits.
+*   **Mécanismes:**
+    *   **Webhooks:** Les plateformes externes envoient des notifications en temps réel lors de nouveaux messages.
+    *   **API Polling:** L'agent interroge périodiquement les sources pour de nouvelles données (moins recommandé pour le temps réel).
+    *   **Connecteurs Directs:** Modules spécifiques pour des intégrations profondes (ex: Salesforce Chat).
+*   **Format:** Les conversations sont converties en un format JSON standardisé, incluant l'ID de la conversation, l'historique des messages, les participants, et les métadonnées (horodatage, source).
 
-6.  **Journalisation et Audit**:
-    *   Toutes les étapes du flux, les données d'entrée, les résultats d'analyse et les actions CRM sont journalisées dans la Base de Données Opérationnelle (BDO) à des fins d'audit, de débogage et d'amélioration continue des modèles.
+### 2.2. Traitement du Langage Naturel (NLP)
 
-## 4. API de l'Agent SalesCoach
+Une fois ingérées, les conversations sont traitées par le module NLP.
 
-Le Service d'API de l'agent SalesCoach est une interface RESTful permettant l'interaction programmatique avec les fonctionnalités de l'agent.
+*   **Nettoyage du Texte:** Suppression des bruits (emojis, liens non pertinents), normalisation (minuscules, lemmatisation).
+*   **Détection de Langue:** Identification de la langue de la conversation.
+*   **Segmentation:** Découpage de la conversation en tours de parole et phrases.
+*   **Extraction d'Entités Nommées (NER):** Identification des informations clés (noms de personnes, organisations, produits, dates, montants).
+*   **Classification d'Intention:** Détection des intentions derrière les messages (question, objection, intérêt, demande de démo).
+*   **Analyse de Sentiment:** Évaluation du ton général de la conversation ou de messages spécifiques (positif, négatif, neutre).
+*   **Vectorisation:** Conversion du texte en représentations numériques (embeddings) pour les modèles d'IA.
 
-### 4.1. Principes Généraux
+### 2.3. Moteur de Détection d'Opportunité
 
-*   **Standard RESTful**: Utilisation des méthodes HTTP standards (GET, POST, PUT, DELETE).
-*   **Format de Données**: Toutes les requêtes et réponses sont au format JSON.
-*   **Versionning**: L'API utilise un versionning pour assurer la compatibilité ascendante (ex: `/api/v1/`).
-*   **Documentation**: Une documentation OpenAPI (Swagger) sera disponible pour faciliter l'intégration.
+C'est le cœur intelligent de l'agent, où les données NLP sont analysées pour identifier les signaux d'opportunité.
 
-### 4.2. Endpoints Clés
+*   **Modèles IA:** Utilisation de modèles de Machine Learning (ML) et de Deep Learning (DL) entraînés sur des données de conversations commerciales.
+    *   **Classification Binaire/Multi-classes:** Pour détecter la présence d'une opportunité, le type d'opportunité (nouvelle, cross-sell, up-sell).
+    *   **Modèles de Séquence:** Pour analyser l'évolution de l'intérêt au fil de la conversation.
+*   **Règles Métier:** Application de règles prédéfinies basées sur des mots-clés, des phrases spécifiques, ou des combinaisons d'entités (ex: "besoin de [produit X]" + "budget de [montant]").
+*   **Prompts IA:** Utilisation de Large Language Models (LLM) avec des prompts spécifiques pour :
+    *   **Synthétiser** l'état actuel de la conversation.
+    *   **Identifier** les "pain points" et les besoins implicites.
+    *   **Qualifier** la maturité du lead (BANT, MEDDIC, etc.).
+    *   **Détecter** les signaux d'achat ou les objections.
+*   **Calcul de Score:** Attribution d'un score de probabilité ou de maturité à l'opportunité détectée.
 
-| Endpoint                       | Méthode | Description                                                                   | Corps de Requête (Exemple)                           | Réponse (Exemple)                                                                 |
-| :----------------------------- | :------ | :---------------------------------------------------------------------------- | :--------------------------------------------------- | :-------------------------------------------------------------------------------- |
-| `/api/v1/analyze-conversation` | `POST`  | Analyse une conversation textuelle et retourne les opportunités/actions.      | `{ "conversation_id": "c123", "text": "Le client a dit..." }` | `{ "status": "success", "opportunities": [...], "suggestions": [...] }`         |
-| `/api/v1/crm/opportunity`      | `POST`  | Crée ou met à jour une opportunité dans le CRM.                               | `{ "crm_type": "salesforce", "data": { "name": "...", "amount": "..." } }` | `{ "status": "success", "crm_id": "006..." }`                                   |
-| `/api/v1/crm/lead`             | `POST`  | Crée ou met à jour un lead dans le CRM.                                       | `{ "crm_type": "salesforce", "data": { "first_name": "...", "email": "..." } }` | `{ "status": "success", "crm_id": "00Q..." }`                                   |
-| `/api/v1/crm/activity`         | `POST`  | Enregistre une activité (tâche, événement) liée à un lead/opportunité.        | `{ "crm_id": "006...", "type": "Task", "subject": "..." }` | `{ "status": "success", "activity_id": "00T..." }`                              |
-| `/api/v1/feedback`             | `POST`  | Permet aux utilisateurs de fournir un feedback sur les suggestions de l'agent. | `{ "conversation_id": "c123", "rating": 5, "comment": "..." }` | `{ "status": "success", "message": "Feedback enregistré." }`                   |
+### 2.4. Génération de Recommandations et d'Actions
 
-### 4.3. Authentification et Autorisation
+Basé sur les opportunités détectées, l'agent génère des suggestions pour le commercial.
 
-*   **Authentification**: Utilisation de jetons JWT (JSON Web Tokens) ou de clés API pour sécuriser l'accès aux endpoints. Les jetons sont générés après une authentification réussie via un service d'identité centralisé.
-*   **Autorisation**: Des rôles et permissions sont associés aux jetons pour contrôler l'accès aux différentes fonctionnalités de l'API.
+*   **Types de Recommandations:**
+    *   **Prochaine Étape Suggérée:** "Proposer une démo", "Envoyer une étude de cas", "Qualifier le budget".
+    *   **Réponses Pré-rédigées:** Suggestions de messages à envoyer, adaptées au contexte.
+    *   **Ressources Pertinentes:** Liens vers des fiches produit, des témoignages clients, des FAQ.
+*   **Actions Automatisées (avec validation):**
+    *   **Création d'Opportunité CRM:** Pré-remplir les champs pour une nouvelle opportunité dans le CRM.
+    *   **Mise à Jour de Lead/Contact CRM:** Ajouter des notes, mettre à jour le statut, attribuer des tâches.
+    *   **Planification de Suivi:** Suggérer la création d'une tâche de relance.
+*   **Personnalisation:** Les recommandations sont adaptées au profil du commercial et aux préférences de l'entreprise.
 
-## 5. Intégrations CRM
+### 2.5. Boucle de Rétroaction et Apprentissage
 
-Le Moteur d'Intégration CRM (MIC) est un composant crucial de l'agent SalesCoach, permettant une interaction fluide avec les systèmes CRM pour la gestion des données commerciales.
+L'agent apprend et s'améliore continuellement grâce aux interactions utilisateur.
 
-### 5.1. Principes d'Intégration
+*   **Validation Utilisateur:** Le commercial valide ou rejette les recommandations et actions proposées par l'agent.
+*   **Notation:** Le commercial peut noter la pertinence des suggestions.
+*   **Données d'Entraînement:** Ces retours sont collectés et utilisés pour réentraîner et affiner les modèles IA, améliorant ainsi la précision et la pertinence des détections et des recommandations futures.
 
-*   **Bidirectionnelle (si nécessaire)**: Bien que l'agent se concentre sur la création/mise à jour, la capacité de récupérer des informations existantes du CRM est essentielle pour éviter les doublons et enrichir le contexte.
-*   **Temps Réel**: Les créations/mises à jour d'opportunités et de leads sont effectuées en temps quasi-réel pour garantir l'actualité des données.
-*   **Sécurisée**: Toutes les communications avec le CRM sont chiffrées (HTTPS) et utilisent des mécanismes d'authentification robustes (OAuth 2.0).
-*   **Configurable**: Le mapping des champs entre l'agent et le CRM est configurable pour s'adapter aux spécificités de chaque implémentation CRM.
+## 3. API de l'Agent SalesCoach
 
-### 5.2. Intégration Salesforce (Exemple Détaillé)
+L'agent SalesCoach expose des API pour permettre son intégration dans des environnements externes et utilise des API internes pour la communication entre ses propres services.
 
-L'intégration avec Salesforce, en tant que CRM de référence, est implémentée via l'API REST de Salesforce.
+### 3.1. API Exposées
 
-*   **Mécanisme d'Intégration**:
-    *   Utilisation de l'API REST Salesforce (version 58.0+ recommandée) pour toutes les opérations.
-    *   Les requêtes sont initiées par le MIC suite aux instructions du MRI.
-    *   Les Webhooks Salesforce peuvent être configurés pour informer l'agent de certains événements CRM si une intégration bidirectionnelle plus poussée est requise (ex: mise à jour d'un statut d'opportunité par un commercial).
+Ces API sont conçues pour permettre à des applications tierces (ex: plateformes de communication, CRM) d'interagir avec l'agent SalesCoach.
 
-*   **Objets Salesforce Cibles**:
-    *   **Lead**: Création et mise à jour de leads qualifiés.
-    *   **Opportunity**: Création et mise à jour d'opportunités, y compris les champs standard (Nom, Montant, Date de clôture, Étape) et potentiellement des champs personnalisés.
-    *   **Account**: Association des opportunités/leads à des comptes existants ou création de nouveaux comptes si non trouvés.
-    *   **Contact**: Création ou association de contacts liés aux leads/opportunités.
-    *   **Task/Event**: Création de tâches ou d'événements pour les commerciaux (ex: "Relancer le client", "Planifier une démo") suite à la détection d'une opportunité.
+*   **Architecture:** RESTful API, utilisant JSON pour les formats de requête et de réponse.
+*   **Authentification:** OAuth 2.0 ou Clés API (API Keys) pour sécuriser l'accès.
+*   **Endpoints Clés:**
 
-*   **Flux de Données (Exemple : Création d'Opportunité)**:
-    1.  Le MRI détecte une opportunité et envoie les données pertinentes (nom client, produit, budget, délai, etc.) au MIC via l'API interne.
-    2.  Le MIC vérifie si un `Account` ou `Lead` existe déjà dans Salesforce pour ce client.
-        *   Si oui, l'opportunité est liée à cet enregistrement.
-        *   Si non, un nouveau `Lead` ou `Account` peut être créé d'abord.
-    3.  Le MIC construit la requête `POST` vers l'endpoint `/services/data/vXX.0/sobjects/Opportunity` de Salesforce.
-    4.  **Mapping des Champs (Exemple)**:
-        *   `Name` (Opportunité) <= `Nom_Opportunite_Generé` (Agent)
-        *   `AccountId` (Opportunité) <= `ID_Compte_Salesforce` (Agent)
-        *   `Amount` (Opportunité) <= `Budget_Détecté` (Agent)
-        *   `CloseDate` (Opportunité) <= `Date_Cloture_Estimée` (Agent)
-        *   `StageName` (Opportunité) <= `Qualification` (Agent, valeur par défaut: "Qualification")
-        *   `Description` (Opportunité) <= `Résumé_Conversation` (Agent)
-        *   `LeadSource` (Opportunité) <= `Agent_SalesCoach` (Valeur fixe)
-    5.  Le MIC gère la réponse de Salesforce, y compris les ID des enregistrements créés/mis à jour et les éventuelles erreurs.
-    6.  Les résultats sont renvoyés au MRI pour la génération de la suggestion finale à l'utilisateur.
+    *   `POST /api/v1/conversations/process`
+        *   **Description:** Envoie une nouvelle conversation ou un segment de conversation pour analyse.
+        *   **Request Body:**
+            json
+            {
+              "conversation_id": "string",
+              "messages": [
+                {
+                  "sender_id": "string",
+                  "timestamp": "ISO 8601 datetime",
+                  "text": "string"
+                }
+              ],
+              "metadata": {
+                "source": "string",
+                "lead_id": "string",
+                "contact_id": "string"
+              }
+            }
+            
+        *   **Response Body:**
+            json
+            {
+              "status": "success",
+              "analysis_id": "string",
+              "recommendations": [
+                {
+                  "type": "opportunity_detected",
+                  "score": 0.85,
+                  "details": {
+                    "opportunity_name": "Projet X - Renouvellement",
+                    "value_estimate": 50000,
+                    "stage": "Qualification",
+                    "reason": "Client a exprimé un besoin de renouvellement avec des fonctionnalités Y."
+                  }
+                },
+                {
+                  "type": "suggested_action",
+                  "action": "create_crm_opportunity",
+                  "description": "Créer une opportunité dans Salesforce",
+                  "payload": { /* CRM specific fields */ }
+                },
+                {
+                  "type": "suggested_response",
+                  "text": "Merci pour votre intérêt ! Seriez-vous disponible pour une courte démonstration la semaine prochaine ?",
+                  "confidence": 0.92
+                }
+              ]
+            }
+            
 
-*   **Authentification**:
-    *   Utilisation du flux OAuth 2.0 (Web Server Flow ou JWT Bearer Flow) pour obtenir un jeton d'accès (access token) sécurisé.
-    *   Le jeton est stocké de manière sécurisée et rafraîchi avant son expiration.
+    *   `GET /api/v1/analyses/{analysis_id}`
+        *   **Description:** Récupère les résultats d'une analyse spécifique.
 
-*   **Gestion des Erreurs et Logs**:
-    *   Les erreurs d'API Salesforce (ex: champs obligatoires manquants, restrictions d'accès) sont capturées et journalisées dans la BDO.
-    *   Des mécanismes de retry avec backoff exponentiel sont mis en place pour les erreurs transitoires.
-    *   Des alertes peuvent être configurées pour les échecs persistants d'intégration.
+    *   `POST /api/v1/feedback`
+        *   **Description:** Soumet le feedback utilisateur sur les recommandations.
+        *   **Request Body:**
+            json
+            {
+              "analysis_id": "string",
+              "recommendation_id": "string",
+              "feedback_type": "accepted" | "rejected" | "modified",
+              "comment": "string (optional)"
+            }
+            
 
-### 5.3. Intégrations CRM Génériques
+### 3.2. API Internes
 
-L'architecture du MIC est conçue pour être extensible. Pour d'autres CRM (Dynamics 365, HubSpot, Pipedrive, etc.):
+Ces API facilitent la communication entre les différents micro-services au sein de l'architecture SalesCoach. Elles sont généralement exposées via un bus de messages ou un mécanisme RPC interne (ex: gRPC).
 
-*   Un nouveau connecteur spécifique au CRM sera développé au sein du MIC.
-*   Ce connecteur implémentera l'API spécifique du CRM et le mapping des champs.
-*   Les principes d'authentification, de gestion des erreurs et de journalisation seront adaptés au CRM cible.
+*   **Exemples:**
+    *   `NLP_Service.analyze_text(text)`
+    *   `Opportunity_Engine.detect_opportunity(nlp_output)`
+    *   `Recommendation_Generator.generate_recommendations(opportunity_details)`
+    *   `CRM_Integration_Service.create_opportunity(payload)`
 
-## 6. Considérations Techniques
+## 4. Intégrations CRM (Exemple: Salesforce)
 
-### 6.1. Sécurité
+L'intégration avec les systèmes CRM est cruciale pour que SalesCoach puisse enrichir les données existantes et initier des actions concrètes. Salesforce est pris comme exemple représentatif.
 
-*   **Chiffrement des Données**: Toutes les données en transit (HTTPS/TLS) et au repos (chiffrement de base de données) sont chiffrées.
-*   **Gestion des Accès**: Principe du moindre privilège appliqué à tous les composants et intégrations (ex: les identifiants CRM ont les permissions minimales requises).
-*   **Audit et Journalisation**: Journalisation complète des activités pour la traçabilité et la détection d'anomalies.
-*   **Conformité**: Conception visant la conformité aux réglementations sur la protection des données (ex: RGPD).
+### 4.1. Vue d'ensemble de l'intégration
 
-### 6.2. Scalabilité et Performance
+L'intégration vise à établir un pont bidirectionnel entre SalesCoach et le CRM, permettant à l'agent d'accéder au contexte client et d'y enregistrer les opportunités et actions détectées.
 
-*   **Microservices**: L'architecture modulaire permet de déployer et de scaler indépendamment les différents services (NLU, MRI, MIC, API Service).
-*   **Traitement Asynchrone**: Le traitement des conversations peut être mis en file d'attente et traité de manière asynchrone pour gérer les pics de charge.
-*   **Mise en Cache**: Utilisation de caches pour les données fréquemment consultées (ex: modèles NLU, règles métier) afin de réduire la latence.
-*   **Monitoring**: Des outils de monitoring et d'alerting sont mis en place pour surveiller la performance et la santé des services.
+### 4.2. Flux de Données
+
+*   **De SalesCoach vers CRM:**
+    *   **Création d'Opportunités:** Quand une nouvelle opportunité est détectée.
+    *   **Mise à Jour de Leads/Contacts:** Ajout de notes, mise à jour du statut, enrichissement des informations.
+    *   **Création de Tâches/Activités:** Planification de rappels ou d'actions pour le commercial.
+    *   **Journalisation des Interactions:** Enregistrement des analyses et recommandations de SalesCoach dans l'historique de l'activité.
+*   **De CRM vers SalesCoach:**
+    *   **Récupération de Contexte:** Accès aux informations du lead/contact/compte (historique, produits achetés, statut actuel) pour affiner l'analyse de conversation.
+    *   **Mise à Jour des Données de Référence:** Synchronisation des listes de produits, des étapes du pipeline, etc.
+
+### 4.3. Mécanismes d'Intégration
+
+*   **API REST (Salesforce REST API):** Méthode principale pour interagir avec Salesforce.
+    *   Authentification via OAuth 2.0 (JWT Bearer Flow ou Web Server Flow).
+    *   Utilisation des ressources standard (Opportunity, Lead, Contact, Task, Account) et potentiellement des objets personnalisés.
+*   **Webhooks Salesforce (Outbound Messages):** Pour que Salesforce notifie SalesCoach de certains événements (ex: mise à jour d'un statut de lead, création d'une nouvelle tâche).
+*   **Connecteurs Dédiés:** Utilisation de SDK ou de bibliothèques spécifiques au CRM pour simplifier l'intégration.
+
+### 4.4. Mapping des Champs CRM
+
+Un mapping précis des champs est essentiel pour assurer la cohérence des données. Voici un exemple pour la création d'une opportunité dans Salesforce.
+
+| Champ SalesCoach (Source) | Champ Salesforce (Destination) | Type de Donnée | Description |
+| :------------------------ | :---------------------------- | :------------- | :----------------------------------------------------------------------------------------------------- |
+| `opportunity_name`        | `Name`                        | String         | Nom de l'opportunité généré par l'IA. |
+| `account_id`              | `AccountId`                   | ID             | ID du compte Salesforce associé. |
+| `contact_id`              | `ContactId`                   | ID             | ID du contact Salesforce principal. |
+| `value_estimate`          | `Amount`                      | Currency       | Estimation de la valeur de l'opportunité. |
+| `stage`                   | `StageName`                   | Picklist       | Étape du processus de vente (ex: Qualification, Proposition). |
+| `close_date_estimate`     | `CloseDate`                   | Date           | Date de clôture estimée. |
+| `description`             | `Description`                 | Long Text Area | Résumé de l'opportunité et des points clés de la conversation. |
+| `source_conversation_id`  | `SalesCoach_Conversation_ID__c` | String         | ID de la conversation SalesCoach (champ personnalisé). |
+| `salescoach_score`        | `SalesCoach_Score__c`         | Number         | Score de probabilité/maturité attribué par SalesCoach (champ personnalisé). |
+
+### 4.5. Gestion des Erreurs et Journalisation
+
+*   **Gestion des Erreurs:** Mise en place de mécanismes de retry avec backoff exponentiel pour les appels API échoués. Notification des erreurs critiques.
+*   **Journalisation:** Enregistrement détaillé de toutes les interactions avec le CRM (requêtes, réponses, erreurs) pour audit et débogage.
+
+## 5. Considérations de Sécurité et de Performance
+
+*   **Sécurité des Données:**
+    *   Chiffrement des données en transit (TLS/SSL) et au repos (AES-256).
+    *   Contrôle d'accès basé sur les rôles (RBAC) pour les utilisateurs et les services.
+    *   Conformité aux réglementations (RGPD, CCPA) concernant les données personnelles.
+*   **Scalabilité:**
+    *   Architecture micro-services permettant la mise à l'échelle horizontale des composants indépendamment.
+    *   Utilisation de services cloud managés pour les bases de données, le stockage et le calcul.
+*   **Latence:**
+    *   Optimisation des modèles IA pour des temps de réponse rapides.
+    *   Mise en cache des données fréquemment utilisées.
+    *   Déploiement dans des régions géographiques proches des utilisateurs finaux.
