@@ -1,3 +1,6 @@
+
+⚠ Gemini error: 200 OK from POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
+=======
 # Documentation Agent Force Commercial - Cas d'Usage Métier
 
 **Ticket:** YC-DOCUME-S1-018
@@ -212,3 +215,4 @@ Aider le développeur commercial à identifier les prospects nécessitant une re
 *   **Proactivité :** Assure que les prospects sont relancés au bon moment.
 *   **Personnalisation :** Les messages générés sont plus pertinents et augmentent les chances de réponse.
 *   **Efficacité :** Gain de temps considérable dans la rédaction des e-mails de relance.
+
